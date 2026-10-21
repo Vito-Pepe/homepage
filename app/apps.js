@@ -12,21 +12,24 @@ document.getElementById("where").textContent = viaTailscale
   : "Connesso dalla rete locale";
 
 const list = document.getElementById("apps");
-for (const app of APPS) {
+APPS.forEach((app, i) => {
   const url = viaTailscale
     ? `https://${host}:${app.tsPort}/`
     : `http://${host}:${app.lanPort}/`;
 
   const li = document.createElement("li");
+  li.style.animationDelay = `${i * 0.08}s`;
+
   const a = document.createElement("a");
   a.href = url;
-  a.className = "card";
+  a.className = `card tone-${i % 4}`;
 
   const icon = document.createElement("span");
   icon.className = "icon";
   icon.textContent = app.icon;
 
   const name = document.createElement("strong");
+  name.className = "name";
   name.textContent = app.name;
 
   const desc = document.createElement("span");
@@ -36,4 +39,4 @@ for (const app of APPS) {
   a.append(icon, name, desc);
   li.append(a);
   list.append(li);
-}
+});
