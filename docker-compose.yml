@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   # Servizio dei giochi: riceve i giochi caricati dalla pagina /giochi/ (password
-  # GIOCHI_PASSWORD del file .env) e dà a ogni gioco un link pubblico per i genitori.
+  # GIOCHI_PASSWORD del file .env) e gestisce i gruppi di giochi con link pubblico.
   giochi:
     build: ./uploader
     ports:
@@ -28,9 +28,9 @@ services:
       - GIOCHI_PUBLIC_URL=${GIOCHI_PUBLIC_URL:-}
     volumes:
       - giochi-caricati:/data
-      # Codici dei link: privati, fuori dalla cartella che nginx rende elencabile
+      # Gruppi e codici dei link: privati, fuori dalla cartella che nginx rende elencabile
       - giochi-stato:/state
-      # Giochi della repo, per dare un link anche a loro
+      # Giochi della repo, per poterli mettere nei gruppi
       - ./app/giochi/files:/repo:ro
     networks:
       - giochi-net
