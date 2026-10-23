@@ -32,6 +32,8 @@
         <label class="file">Carica un gioco (file .html)
           <input id="file" type="file" accept=".html,.htm,text/html">
         </label>
+        <p id="no-public" class="hint warn" hidden>I link per i genitori non hanno ancora l'indirizzo pubblico: sul Pi va aggiunto <code>GIOCHI_PUBLIC_URL</code> nel file <code>.env</code> della homepage.</p>
+        <p class="hint">Sotto ogni gioco c'è il suo link per i genitori: aprendolo vedono solo quel gioco, da qualsiasi telefono. "Nuovo link" disattiva quello vecchio.</p>
         <p class="hint">Il nome nell'elenco viene dal titolo del gioco. Per scegliere l'icona, nel gioco va la riga <code>&lt;meta name="icona" content="🐶"&gt;</code>. I giochi caricati si possono eliminare con la ✕ sul loro riquadro.</p>
         <button id="logout" class="btn ghost" type="button">Esci</button>
       </div>

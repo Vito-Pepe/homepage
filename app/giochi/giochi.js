@@ -9,6 +9,9 @@ const DIRS = ["files/", "caricati/"];
 const HTML = /\.html?$/i;
 
 let admin = false;
+// Link pubblici per i genitori (solo in modalità gestione): "files/x.html" -> { url, token }
+let links = {};
+let publicUrl = "";
 
 function showStatus(text) {
   $("status").textContent = text;
@@ -71,6 +74,9 @@ function card(game, i) {
   }
   li.append(a);
 
+  const link = admin && links[`${game.dir}${game.file}`];
+  if (link) li.append(shareBox(game, link));
+
   if (admin && game.dir === "caricati/") {
     const del = document.createElement("button");
     del.type = "button";
@@ -82,6 +88,73 @@ function card(game, i) {
     li.append(del);
   }
   return li;
+}
+
+// ── Link pubblici ──
+async function copyText(text, input) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fuori da HTTPS il browser non dà accesso agli appunti: si copia dalla casella
+    input.select();
+    return document.execCommand("copy");
+  }
+}
+
+function shareBox(game, link) {
+  const box = document.createElement("div");
+  box.className = "share";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.readOnly = true;
+  input.value = link.url || `Codice ${link.token} (manca GIOCHI_PUBLIC_URL sul Pi)`;
+  input.setAttribute("aria-label", "Link per i genitori");
+
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "btn small";
+  copy.textContent = "Copia link";
+  copy.disabled = !link.url;
+  copy.addEventListener("click", async () => {
+    copy.textContent = (await copyText(input.value, input)) ? "Copiato!" : "Copia a mano";
+    setTimeout(() => (copy.textContent = "Copia link"), 1800);
+  });
+
+  const rotate = document.createElement("button");
+  rotate.type = "button";
+  rotate.className = "btn small ghost";
+  rotate.textContent = "Nuovo link";
+  rotate.addEventListener("click", () => rotateLink(game));
+
+  box.append(input, copy, rotate);
+  return box;
+}
+
+async function loadLinks() {
+  links = {};
+  if (!admin) return;
+  try {
+    const data = await api("GET", "api/links");
+    publicUrl = data.publicUrl;
+    data.links.forEach((l) => (links[`${l.source}/${l.file}`] = l));
+    $("no-public").hidden = Boolean(publicUrl);
+  } catch (ex) {
+    message(ex.message, "error");
+  }
+}
+
+async function rotateLink(game) {
+  if (!confirm("Creare un nuovo link per questo gioco? Quello vecchio smetterà subito di funzionare.")) return;
+  try {
+    await api("POST", "api/links/rotate", JSON.stringify({ source: game.dir.replace("/", ""), file: game.file }), "application/json");
+    message("Nuovo link creato.", "ok");
+  } catch (ex) {
+    message(ex.message, "error");
+  }
+  await loadLinks();
+  await loadGames();
 }
 
 async function loadGames() {
@@ -144,6 +217,7 @@ async function openAdmin() {
   $("upload").hidden = !s.auth;
   admin = Boolean(s.auth);
   if (s.enabled && !s.auth) $("password").focus();
+  await loadLinks();
   await loadGames();
   $("admin").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -164,6 +238,7 @@ $("login").addEventListener("submit", async (e) => {
 $("logout").addEventListener("click", async () => {
   await api("POST", "api/logout").catch(() => {});
   admin = false;
+  links = {};
   $("admin").hidden = true;
   $("manage").hidden = false;
   await loadGames();
@@ -186,7 +261,8 @@ $("file").addEventListener("change", async () => {
       if (ex.status !== 409 || !confirm(`${ex.message}. Vuoi sostituirlo?`)) throw ex;
       res = await upload(file, true);
     }
-    message(`Caricato: ${res.name}. Lo trovi nell'elenco qui sopra.`, "ok");
+    message(`Caricato: ${res.name}. Lo trovi nell'elenco qui sopra${res.url ? `, con il suo link per i genitori: ${res.url}` : ""}.`, "ok");
+    await loadLinks();
     await loadGames();
   } catch (ex) {
     if (ex.status === 401) await openAdmin();
@@ -204,6 +280,7 @@ async function removeGame(game, title) {
   } catch (ex) {
     message(ex.message, "error");
   }
+  await loadLinks();
   await loadGames();
 }
 
