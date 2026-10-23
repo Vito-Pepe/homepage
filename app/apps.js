@@ -3,7 +3,7 @@
 // Senza tsPort l'app si apre in http sulla lanPort anche dalla tailnet.
 // path = sezione della homepage stessa (stesso indirizzo, nessuna porta).
 const APPS = [
-  { name: "Sillabe", desc: "Gioco per imparare a leggere le sillabe", icon: "🔤", lanPort: 8080, tsPort: 8443 },
+  { name: "Sillabe", desc: "Gioco per imparare a leggere le sillabe", icon: "🔤", lanPort: 8080, tsPort: 10000 },
   { name: "Parole", desc: "Componi le parole guardando l'immagine", icon: "🧩", lanPort: 8082 },
   { name: "Giochi", desc: "Altri giochi da scegliere", icon: "🎮", path: "giochi/" },
 ];

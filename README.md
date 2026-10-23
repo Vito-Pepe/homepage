@@ -115,4 +115,6 @@ Aggiornamento automatico ogni 5 minuti (senza sudo):
 | App | LAN (http) | Tailscale (https) |
 |---|---|---|
 | homepage | 8081 | 443 |
-| sillabe | 8080 | 8443 |
+| sillabe | 8080 | 10000 |
+
+La porta HTTPS 8443 è usata da un'altra app (`127.0.0.1:8765`). Prima di aggiungere un `tailscale serve`, controllare con `tailscale serve status` quali porte sono già prese: un nuovo comando sulla stessa porta sostituisce quello vecchio.
