@@ -19,6 +19,8 @@ La sezione **Giochi** (riquadro nella homepage, pagina `/giochi/`) elenca da sol
 
 Ogni gioco è un file `.html`. Se usa immagini o altri file, mettili nella stessa cartella: nell'elenco compaiono solo i `.html`.
 
+In cima all'elenco c'è una **barra di ricerca**: filtra i giochi per nome (titolo o nome del file) mentre si scrive, senza badare a maiuscole e accenti.
+
 Per pubblicarne uno senza usare il terminale: su GitHub apri la cartella `app/giochi/files`, premi **Add file > Upload files**, trascina il file e conferma su `main`. Entro 5 minuti il Pi lo mostra.
 
 `memory-esempio.html` è un esempio: si può cancellare quando arrivano i giochi veri.
