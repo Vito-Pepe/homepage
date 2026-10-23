@@ -1,0 +1,8 @@
+services:
+  homepage:
+    build: .
+    ports:
+      # Raggiungibile dalla LAN (http://IP-DEL-PI:8081) e, tramite
+      # tailscale serve, da remoto su https://<nome>.<tailnet>.ts.net (porta 443).
+      - "8081:80"
+    restart: unless-stopped
