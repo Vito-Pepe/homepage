@@ -23,6 +23,26 @@ Per pubblicarne uno senza usare il terminale: su GitHub apri la cartella `app/gi
 
 `memory-esempio.html` è un esempio: si può cancellare quando arrivano i giochi veri.
 
+### Caricare un gioco dalla pagina
+
+In fondo alla pagina dei giochi c'è il link **Gestisci giochi**: con la password si può caricare un file `.html`, che compare subito nell'elenco, oppure eliminare un gioco caricato (la ✕ sul suo riquadro). I giochi caricati così stanno **solo sul Pi** (volume Docker `homepage_giochi-caricati`, servito da nginx su `/giochi/caricati/`), non su GitHub. Quelli in `app/giochi/files/` restano gestiti dalla repo e non si possono eliminare dalla pagina.
+
+Il caricamento passa da un piccolo servizio Node (`uploader/`, servizio `giochi` nel compose) che nginx raggiunge su `/giochi/api/`: accetta solo file `.html` fino a 3 MB, pulisce il nome del file e chiede la password, con blocco di un minuto dopo 5 tentativi sbagliati. Senza password impostata il caricamento resta spento.
+
+Impostare la password sul Pi (una volta; la riga che inizia con uno spazio non resta nella cronologia della shell):
+
+```bash
+cd ~/homepage
+ read -rsp "Password per caricare i giochi: " P && echo "GIOCHI_PASSWORD=$P" >> .env && unset P && echo
+docker compose up -d --build
+```
+
+Backup dei giochi caricati:
+
+```bash
+docker run --rm -v homepage_giochi-caricati:/data -v "$HOME":/backup alpine tar czf /backup/giochi-caricati.tgz -C /data .
+```
+
 ## Deploy sul Raspberry Pi
 
 ```bash
