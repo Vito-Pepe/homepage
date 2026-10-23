@@ -26,6 +26,23 @@
   text-align: center;
 }
 
+/* ── Ricerca per nome ── */
+.search { width: 100%; margin-bottom: 1.3rem; }
+.search input {
+  width: 100%;
+  padding: 0.8rem 1.2rem 0.8rem 2.8rem;
+  font-family: inherit;
+  font-size: 1.05rem;
+  color: #374151;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 1rem center;
+  border: none;
+  border-radius: 25px;
+  box-shadow: 0 6px 22px rgba(0,0,0,0.15);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search input:focus { outline: 3px solid rgba(255,255,255,0.6); outline-offset: 2px; }
+
 /* ── Gestione (caricamento ed eliminazione) ── */
 .manage-link {
   margin-top: 2.5rem;
