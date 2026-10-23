@@ -7,7 +7,12 @@ const APPS = [
 ];
 
 const host = location.hostname;
-const viaTailscale = location.protocol === "https:";
+// In https la pagina arriva da tailscale serve: le app con tsPort si aprono in https.
+const secure = location.protocol === "https:";
+// Tailscale anche in http: nome breve (es. "vito", utile con il Relay privato di iCloud)
+// o indirizzo 100.64.0.0/10.
+const tailnetIp = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host);
+const viaTailscale = secure || tailnetIp || (!host.includes(".") && host !== "localhost");
 
 document.getElementById("where").textContent = viaTailscale
   ? "Connesso tramite Tailscale"
@@ -15,7 +20,7 @@ document.getElementById("where").textContent = viaTailscale
 
 const list = document.getElementById("apps");
 APPS.forEach((app, i) => {
-  const url = viaTailscale && app.tsPort
+  const url = secure && app.tsPort
     ? `https://${host}:${app.tsPort}/`
     : `http://${host}:${app.lanPort}/`;
 
