@@ -94,9 +94,15 @@
       padding: 0;
       box-shadow: 0 3px 10px rgba(0,0,0,0.12);
       transition: transform 0.15s, box-shadow 0.15s, border-radius 0.35s;
+      touch-action: none;             /* il dito trascina il pezzo, non la pagina */
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
-    .piece:hover { transform: translateY(-2px); }
+    @media (hover: hover) { .piece:hover { transform: translateY(-2px); } }
     .piece.selected { box-shadow: 0 0 0 4px #FF6584, 0 6px 18px rgba(0,0,0,0.25); transform: scale(0.94); }
+    .piece.dragging { z-index: 5; transition: none; cursor: grabbing; box-shadow: 0 14px 30px rgba(0,0,0,0.3); }
+    .piece.drop { box-shadow: 0 0 0 4px #48BB78, 0 6px 18px rgba(0,0,0,0.25); transform: scale(0.94); }
     .board.solved .piece { border-radius: 0; box-shadow: none; cursor: default; transform: none; }
     .art {
       position: absolute;
@@ -163,7 +169,7 @@
   </section>
 
   <section id="play" hidden>
-    <p class="sub" id="hint">Tocca due pezzi per scambiarli di posto</p>
+    <p class="sub" id="hint">Trascina un pezzo sopra un altro per scambiarli</p>
     <div class="goal">
       <span>Ricomponi:</span>
       <span class="goal-pic" id="goal"></span>
@@ -194,6 +200,8 @@
     let selected = null;  // posizione del pezzo selezionato
     let solved = false;
     let lastEmoji = '';
+    let drag = null;          // trascinamento in corso
+    let justDragged = false;  // evita che il rilascio conti anche come tocco
 
     function shuffle(list) {
       const a = list.slice();
@@ -260,11 +268,19 @@
         art.style.left = `${-col * (tile + gap)}px`;
         art.style.top = `${-row * (tile + gap)}px`;
         btn.append(art);
-        btn.addEventListener('click', () => tap(pos));
+        btn.addEventListener('click', () => {
+          if (justDragged) { justDragged = false; return; }
+          tap(pos);
+        });
+        btn.addEventListener('pointerdown', (e) => startDrag(e, pos, btn));
+        btn.addEventListener('pointermove', moveDrag);
+        btn.addEventListener('pointerup', () => endDrag(true));
+        btn.addEventListener('pointercancel', () => endDrag(false));
         board.append(btn);
       });
     }
 
+    // Toccare due pezzi li scambia (resta possibile anche senza trascinare)
     function tap(pos) {
       if (solved) return;
       if (selected === null) {
@@ -276,7 +292,70 @@
         selected = null;
       }
       render();
+      checkWin();
+    }
+
+    function checkWin() {
       if (order.every((v, i) => v === i)) win();
+    }
+
+    // Posizione della griglia sotto il dito, o null se fuori
+    function posAt(x, y) {
+      const board = $('board');
+      const rect = board.getBoundingClientRect();
+      const step = Number(board.dataset.tile) + 6;
+      const col = Math.floor((x - rect.left - 6) / step);
+      const row = Math.floor((y - rect.top - 6) / step);
+      if (col < 0 || row < 0 || col >= n || row >= n) return null;
+      return row * n + col;
+    }
+
+    function startDrag(e, pos, btn) {
+      if (solved || drag || e.button > 0) return;
+      justDragged = false;
+      drag = { pos, btn, x: e.clientX, y: e.clientY, moving: false, target: null };
+      btn.setPointerCapture(e.pointerId);
+    }
+
+    function moveDrag(e) {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (!drag.moving) {
+        if (Math.hypot(dx, dy) < 8) return;   // un piccolo movimento è ancora un tocco
+        drag.moving = true;
+        selected = null;
+        $('board').querySelectorAll('.selected').forEach((b) => b.classList.remove('selected'));
+        drag.btn.classList.add('dragging');
+      }
+      drag.btn.style.transform = `translate(${dx}px, ${dy}px) scale(1.06)`;
+      let target = posAt(e.clientX, e.clientY);
+      if (target === drag.pos) target = null;
+      if (target !== drag.target) {
+        const pieces = $('board').children;
+        if (drag.target !== null) pieces[drag.target].classList.remove('drop');
+        if (target !== null) pieces[target].classList.add('drop');
+        drag.target = target;
+      }
+    }
+
+    function endDrag(drop) {
+      if (!drag) return;
+      const d = drag;
+      drag = null;
+      if (!d.moving) return;                  // era un tocco: ci pensa il click
+      justDragged = true;
+      setTimeout(() => { justDragged = false; }, 400);
+      if (drop && d.target !== null) {
+        [order[d.pos], order[d.target]] = [order[d.target], order[d.pos]];
+        render();
+        checkWin();
+      } else {
+        // Rilasciato fuori: il pezzo torna al suo posto
+        if (d.target !== null) $('board').children[d.target].classList.remove('drop');
+        d.btn.classList.remove('dragging');
+        d.btn.style.transform = '';
+      }
     }
 
     function win() {
