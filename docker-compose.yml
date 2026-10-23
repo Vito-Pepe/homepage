@@ -10,17 +10,30 @@ services:
       - giochi-caricati:/usr/share/nginx/html/giochi/caricati:ro
     depends_on:
       - giochi
+    networks:
+      - giochi-net
     restart: unless-stopped
 
-  # Riceve i giochi caricati dalla pagina /giochi/ (con la password GIOCHI_PASSWORD del
-  # file .env) e li salva nel volume condiviso. Non è pubblicato su nessuna porta:
-  # ci arriva solo nginx.
+  # Servizio dei giochi: riceve i giochi caricati dalla pagina /giochi/ (password
+  # GIOCHI_PASSWORD del file .env) e dà a ogni gioco un link pubblico per i genitori.
   giochi:
     build: ./uploader
+    ports:
+      # Solo i giochi tramite link: visibile solo sul Pi stesso, esce su Internet
+      # dall'ingresso pubblico di Parole (percorso /g/, vedi README)
+      - "127.0.0.1:8084:3001"
     environment:
       - GIOCHI_PASSWORD=${GIOCHI_PASSWORD:-}
+      # Indirizzo base dei link pubblici, es. https://parole-esercizi.<tailnet>.ts.net/g
+      - GIOCHI_PUBLIC_URL=${GIOCHI_PUBLIC_URL:-}
     volumes:
       - giochi-caricati:/data
+      # Codici dei link: privati, fuori dalla cartella che nginx rende elencabile
+      - giochi-stato:/state
+      # Giochi della repo, per dare un link anche a loro
+      - ./app/giochi/files:/repo:ro
+    networks:
+      - giochi-net
     read_only: true
     cap_drop:
       - ALL
@@ -30,5 +43,13 @@ services:
     pids_limit: 50
     restart: unless-stopped
 
+networks:
+  # Bridge con nome fisso: le regole in firewall/ impediscono ai container di aprire
+  # connessioni verso LAN, Pi e Internet (nginx e giochi possono parlarsi tra loro).
+  giochi-net:
+    driver_opts:
+      com.docker.network.bridge.name: br-giochi
+
 volumes:
   giochi-caricati:
+  giochi-stato:

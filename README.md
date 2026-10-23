@@ -37,10 +37,48 @@ cd ~/homepage
 docker compose up -d --build
 ```
 
-Backup dei giochi caricati:
+### Link per i genitori
+
+Ogni gioco, caricato o della repo, ha un **link pubblico** da mandare ai genitori: in "Gestisci giochi" compare sotto il suo riquadro, con "Copia link" e "Nuovo link" (che disattiva quello vecchio). Un gioco appena caricato riceve subito il link; quelli della repo lo ricevono da soli. Eliminando un gioco, il suo link smette di funzionare.
+
+Chi apre il link vede **solo quel gioco**, da qualsiasi telefono e senza Tailscale. Lo serve la seconda porta del servizio `giochi` (`127.0.0.1:8084`, visibile solo sul Pi), che risponde solo a un codice valido (casuale, 128 bit) e restituisce il gioco in **sandbox**: gli script funzionano, ma il gioco non può salvare dati nel browser né vedere cookie o altre pagine del sito. Esce su Internet dall'ingresso pubblico di Parole (`parole-esercizi`, percorso `/g/`, configurato nella repo parole).
+
+Limiti: un gioco pubblicato deve stare in un solo file (immagini incorporate o prese da Internet); il link "← Giochi" dentro un gioco, dalla versione pubblica, non porta da nessuna parte.
+
+I codici stanno nel volume `homepage_giochi-stato`, separato dai giochi.
+
+Configurazione sul Pi (indirizzo base dei link, una volta):
+
+```bash
+cd ~/homepage
+echo "GIOCHI_PUBLIC_URL=https://parole-esercizi.<tailnet>.ts.net/g" >> .env
+docker compose up -d --build
+```
+
+### Isolamento dalla rete di casa
+
+Il servizio `giochi` riceve richieste da Internet, quindi i container della homepage stanno su una rete con bridge dal nome fisso (`br-giochi`) e le regole in `firewall/` bloccano ogni connessione nuova che ne esce verso LAN, tailnet, Internet e il Pi stesso. nginx e il servizio dei giochi possono comunque parlarsi. Installazione (una volta):
+
+```bash
+cd ~/homepage
+sudo install -m 755 firewall/giochi-firewall.sh /usr/local/sbin/giochi-firewall.sh
+sudo install -m 644 firewall/giochi-firewall.service /etc/systemd/system/giochi-firewall.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now giochi-firewall.service
+sudo giochi-firewall.sh status
+```
+
+Verifica (prima delle regole deve rispondere `RAGGIUNTO`, dopo `BLOCCATO`):
+
+```bash
+docker compose exec giochi wget -q -T 3 -O /dev/null http://192.168.1.1 && echo RAGGIUNTO || echo BLOCCATO
+```
+
+Backup dei giochi caricati e dei codici dei link:
 
 ```bash
 docker run --rm -v homepage_giochi-caricati:/data -v "$HOME":/backup alpine tar czf /backup/giochi-caricati.tgz -C /data .
+docker run --rm -v homepage_giochi-stato:/data -v "$HOME":/backup alpine tar czf /backup/giochi-link.tgz -C /data .
 ```
 
 ## Deploy sul Raspberry Pi
