@@ -56,10 +56,13 @@ async function readInfo(game) {
 
 const gameTitle = (g) => (g.title || titleFromFile(g.file)).slice(0, 60);
 const gameIcon = (g) => Array.from(g.icon || "🎮").slice(0, 4).join("");
+// Testo per la ricerca: senza maiuscole né accenti ("memória" trova "Memoria")
+const plain = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 function card(game, i) {
   const li = document.createElement("li");
   li.style.animationDelay = `${i * 0.08}s`;
+  li.dataset.search = plain(`${gameTitle(game)} ${titleFromFile(game.file)}`);
 
   const a = document.createElement("a");
   a.href = game.dir + encodeURIComponent(game.file);
@@ -101,6 +104,7 @@ async function loadGames() {
     showStatus("Non riesco a leggere l'elenco dei giochi. Riprova tra poco.");
     $("games").replaceChildren();
     games = [];
+    applySearch();
     return;
   }
   const found = lists.flatMap((l) => l || []);
@@ -108,13 +112,31 @@ async function loadGames() {
     showStatus("Ancora nessun gioco: arriveranno presto!");
     $("games").replaceChildren();
     games = [];
+    applySearch();
     return;
   }
   showStatus("");
   games = await Promise.all(found.map(async (g) => ({ ...g, ...(await readInfo(g)) })));
   games.sort((a, b) => (a.title || a.file).localeCompare(b.title || b.file, "it"));
   $("games").replaceChildren(...games.map(card));
+  applySearch();
 }
+
+// ── Ricerca per nome: nasconde i giochi che non corrispondono, senza ricrearli ──
+function applySearch() {
+  $("search-box").hidden = games.length === 0;
+  const text = games.length ? $("search").value.trim() : "";
+  const q = plain(text);
+  let shown = 0;
+  for (const li of $("games").children) {
+    li.hidden = Boolean(q) && !li.dataset.search.includes(q);
+    if (!li.hidden) shown++;
+  }
+  $("no-match").textContent = `Nessun gioco trovato per "${text}"`;
+  $("no-match").hidden = !q || shown > 0;
+}
+
+$("search").addEventListener("input", applySearch);
 
 // ── Gestione: password, caricamento, eliminazione ──
 async function api(method, url, body, type) {
