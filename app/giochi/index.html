@@ -32,11 +32,35 @@
         <label class="file">Carica un gioco (file .html)
           <input id="file" type="file" accept=".html,.htm,text/html">
         </label>
-        <p id="no-public" class="hint warn" hidden>I link per i genitori non hanno ancora l'indirizzo pubblico: sul Pi va aggiunto <code>GIOCHI_PUBLIC_URL</code> nel file <code>.env</code> della homepage.</p>
-        <p class="hint">Sotto ogni gioco c'è il suo link per i genitori: aprendolo vedono solo quel gioco, da qualsiasi telefono. "Nuovo link" disattiva quello vecchio.</p>
         <p class="hint">Il nome nell'elenco viene dal titolo del gioco. Per scegliere l'icona, nel gioco va la riga <code>&lt;meta name="icona" content="🐶"&gt;</code>. I giochi caricati si possono eliminare con la ✕ sul loro riquadro.</p>
-        <button id="logout" class="btn ghost" type="button">Esci</button>
       </div>
+
+      <div id="groups" hidden>
+        <h3>Gruppi di giochi</h3>
+        <p class="hint">Per mandare dei giochi a un genitore, crea un gruppo (anche con un gioco solo) e manda il suo link: con più giochi vedrà una pagina per sceglierli, con uno solo si apre subito il gioco. "Nuovo link" disattiva quello vecchio.</p>
+        <p id="no-public" class="hint warn" hidden>I link non hanno ancora l'indirizzo pubblico: sul Pi va aggiunto <code>GIOCHI_PUBLIC_URL</code> nel file <code>.env</code> della homepage.</p>
+        <ul id="group-list" class="group-list"></ul>
+        <button id="group-add" class="btn" type="button">+ Nuovo gruppo</button>
+
+        <form id="group-form" class="group-form" hidden>
+          <h3 id="group-title">Nuovo gruppo</h3>
+          <label>Nome del gruppo (lo vedi solo tu)
+            <input id="group-label" type="text" maxlength="60" autocomplete="off" placeholder="es. Giochi settimana 3">
+          </label>
+          <p class="hint warn">Non scrivere il nome del paziente: usa un riferimento che conosci solo tu.</p>
+          <fieldset>
+            <legend>Giochi del gruppo</legend>
+            <div id="group-games" class="group-games"></div>
+          </fieldset>
+          <div class="row">
+            <button class="btn" type="submit">Salva</button>
+            <button id="group-cancel" class="btn ghost" type="button">Annulla</button>
+            <button id="group-rotate" class="btn danger" type="button" hidden>Nuovo link</button>
+          </div>
+        </form>
+      </div>
+
+      <button id="logout" class="btn ghost" type="button" hidden>Esci</button>
 
       <p id="admin-msg" class="msg" role="status" hidden></p>
     </section>

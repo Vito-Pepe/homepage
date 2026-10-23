@@ -91,19 +91,26 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
-/* ── Link per i genitori (modalità gestione) ── */
-.share {
-  margin-top: 0.5rem;
+.btn.small { padding: 0.35rem 0.9rem; font-size: 0.82rem; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.panel .hint.warn { color: #b45309; font-weight: 600; }
+
+/* ── Gruppi di giochi (modalità gestione) ── */
+.panel h3 { color: #6C63FF; font-size: 1.05rem; margin-top: 0.4rem; }
+#groups { display: flex; flex-direction: column; gap: 0.7rem; border-top: 2px solid #f3f4f6; padding-top: 0.9rem; }
+.group-list { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
+.group-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  padding: 0.6rem;
-  background: rgba(255,255,255,0.92);
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.8rem;
+  border: 2px solid #e5e7eb;
   border-radius: 14px;
 }
-.share input {
-  flex: 1 1 100%;
-  min-width: 0;
+.group-item strong { color: #6C63FF; }
+.group-item .meta { font-size: 0.82rem; color: #6b7280; }
+.group-item input {
+  width: 100%;
   padding: 0.45rem 0.6rem;
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 0.75rem;
@@ -113,6 +120,23 @@
   border: 2px solid #e5e7eb;
   border-radius: 10px;
 }
-.btn.small { padding: 0.35rem 0.9rem; font-size: 0.82rem; }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.panel .hint.warn { color: #b45309; font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.btn.danger { background: #dc2626; }
+.group-form { display: flex; flex-direction: column; gap: 0.7rem; align-items: stretch !important; border: 2px dashed #e5e7eb; border-radius: 14px; padding: 0.9rem; }
+.group-form input[type="text"] { padding: 0.55rem 0.7rem; font-size: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; }
+.group-form fieldset { border: none; display: flex; flex-direction: column; gap: 0.4rem; }
+.group-form legend { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.3rem; }
+.group-games { display: flex; flex-direction: column; gap: 0.4rem; }
+.group-game {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.6rem !important;
+  padding: 0.45rem 0.6rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.group-game:has(input:checked) { border-color: #48BB78; background: #f0fdf4; }
+.group-game input { width: 18px; height: 18px; accent-color: #48BB78; }
+.group-game .gi { font-size: 1.4rem; }
