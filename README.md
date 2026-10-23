@@ -37,15 +37,21 @@ cd ~/homepage
 docker compose up -d --build
 ```
 
-### Link per i genitori
+### Gruppi di giochi (link per i genitori)
 
-Ogni gioco, caricato o della repo, ha un **link pubblico** da mandare ai genitori: in "Gestisci giochi" compare sotto il suo riquadro, con "Copia link" e "Nuovo link" (che disattiva quello vecchio). Un gioco appena caricato riceve subito il link; quelli della repo lo ricevono da soli. Eliminando un gioco, il suo link smette di funzionare.
+Per mandare dei giochi a un genitore si crea un **gruppo** in "Gestisci giochi" (sezione "Gruppi di giochi"): nome interno (mai il nome del paziente), giochi scelti tra quelli presenti, anche uno solo. Ogni gruppo ha un **link pubblico** con "Copia link", "Modifica" ed "Elimina"; da "Modifica" c'è anche "Nuovo link", che disattiva quello vecchio.
 
-Chi apre il link vede **solo quel gioco**, da qualsiasi telefono e senza Tailscale. Lo serve la seconda porta del servizio `giochi` (`127.0.0.1:8084`, visibile solo sul Pi), che risponde solo a un codice valido (casuale, 128 bit) e restituisce il gioco in **sandbox**: gli script funzionano, ma il gioco non può salvare dati nel browser né vedere cookie o altre pagine del sito. Esce su Internet dall'ingresso pubblico di Parole (`parole-esercizi`, percorso `/g/`, configurato nella repo parole).
+Chi apre il link, da qualsiasi telefono e senza Tailscale:
+- con **più giochi** vede una pagina di scelta (titolo, icona e descrizione presi dai giochi);
+- con **un gioco solo** va dritto al gioco.
 
-Limiti: un gioco pubblicato deve stare in un solo file (immagini incorporate o prese da Internet); il link "← Giochi" dentro un gioco, dalla versione pubblica, non porta da nessuna parte.
+I giochi sono serviti in **sandbox**: gli script funzionano, ma il gioco non può salvare dati nel browser né vedere cookie o altre pagine. A ogni gioco viene aggiunto al volo un piccolo script per i link che portano fuori dal gioco (es. "← Giochi"): con più giochi riportano alla pagina di scelta del gruppo, con un gioco solo vengono nascosti. I file dei giochi non vengono modificati.
 
-I codici stanno nel volume `homepage_giochi-stato`, separato dai giochi.
+Eliminando un gioco, viene tolto anche dai gruppi; un gruppo rimasto senza giochi ha il link disattivato.
+
+Tutto questo lo serve la seconda porta del servizio `giochi` (`127.0.0.1:8084`, visibile solo sul Pi), che risponde solo a un codice di gruppo valido (casuale, 128 bit). Esce su Internet dall'ingresso pubblico di Parole (`parole-esercizi`, percorso `/g/`, configurato nella repo parole). I gruppi stanno nel volume `homepage_giochi-stato`, separato dai giochi.
+
+Limite: un gioco pubblicato deve stare in un solo file (immagini incorporate o prese da Internet).
 
 Configurazione sul Pi (indirizzo base dei link, una volta):
 
@@ -74,11 +80,11 @@ Verifica (prima delle regole deve rispondere `RAGGIUNTO`, dopo `BLOCCATO`):
 docker compose exec giochi wget -q -T 3 -O /dev/null http://192.168.1.1 && echo RAGGIUNTO || echo BLOCCATO
 ```
 
-Backup dei giochi caricati e dei codici dei link:
+Backup dei giochi caricati e dei gruppi:
 
 ```bash
 docker run --rm -v homepage_giochi-caricati:/data -v "$HOME":/backup alpine tar czf /backup/giochi-caricati.tgz -C /data .
-docker run --rm -v homepage_giochi-stato:/data -v "$HOME":/backup alpine tar czf /backup/giochi-link.tgz -C /data .
+docker run --rm -v homepage_giochi-stato:/data -v "$HOME":/backup alpine tar czf /backup/giochi-gruppi.tgz -C /data .
 ```
 
 ## Deploy sul Raspberry Pi

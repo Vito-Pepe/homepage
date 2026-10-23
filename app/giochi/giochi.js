@@ -3,15 +3,20 @@
 //   caricati/  giochi caricati da questa pagina (servizio "giochi", con password)
 // Nome e icona arrivano dal gioco stesso: <title>...</title> e <meta name="icona" content="🐶">.
 // Facoltativa anche una descrizione: <meta name="description" content="...">.
+// In "Gestisci giochi": caricamento, eliminazione e gruppi di giochi con link per i genitori.
 
 const $ = (id) => document.getElementById(id);
 const DIRS = ["files/", "caricati/"];
 const HTML = /\.html?$/i;
 
 let admin = false;
-// Link pubblici per i genitori (solo in modalità gestione): "files/x.html" -> { url, token }
-let links = {};
+let games = [];          // giochi mostrati, con titolo e icona
+let groups = [];         // gruppi di giochi (solo in gestione)
 let publicUrl = "";
+let editing = null;      // gruppo in modifica
+
+// Chiave di un gioco usata dal servizio: "files/x.html" o "caricati/x.html"
+const keyOf = (g) => g.dir + g.file;
 
 function showStatus(text) {
   $("status").textContent = text;
@@ -49,6 +54,9 @@ async function readInfo(game) {
   }
 }
 
+const gameTitle = (g) => (g.title || titleFromFile(g.file)).slice(0, 60);
+const gameIcon = (g) => Array.from(g.icon || "🎮").slice(0, 4).join("");
+
 function card(game, i) {
   const li = document.createElement("li");
   li.style.animationDelay = `${i * 0.08}s`;
@@ -59,11 +67,11 @@ function card(game, i) {
 
   const icon = document.createElement("span");
   icon.className = "icon";
-  icon.textContent = Array.from(game.icon || "🎮").slice(0, 4).join("");
+  icon.textContent = gameIcon(game);
 
   const name = document.createElement("strong");
   name.className = "name";
-  name.textContent = (game.title || titleFromFile(game.file)).slice(0, 60);
+  name.textContent = gameTitle(game);
 
   a.append(icon, name);
   if (game.desc) {
@@ -73,9 +81,6 @@ function card(game, i) {
     a.append(desc);
   }
   li.append(a);
-
-  const link = admin && links[`${game.dir}${game.file}`];
-  if (link) li.append(shareBox(game, link));
 
   if (admin && game.dir === "caricati/") {
     const del = document.createElement("button");
@@ -90,88 +95,23 @@ function card(game, i) {
   return li;
 }
 
-// ── Link pubblici ──
-async function copyText(text, input) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // Fuori da HTTPS il browser non dà accesso agli appunti: si copia dalla casella
-    input.select();
-    return document.execCommand("copy");
-  }
-}
-
-function shareBox(game, link) {
-  const box = document.createElement("div");
-  box.className = "share";
-
-  const input = document.createElement("input");
-  input.type = "text";
-  input.readOnly = true;
-  input.value = link.url || `Codice ${link.token} (manca GIOCHI_PUBLIC_URL sul Pi)`;
-  input.setAttribute("aria-label", "Link per i genitori");
-
-  const copy = document.createElement("button");
-  copy.type = "button";
-  copy.className = "btn small";
-  copy.textContent = "Copia link";
-  copy.disabled = !link.url;
-  copy.addEventListener("click", async () => {
-    copy.textContent = (await copyText(input.value, input)) ? "Copiato!" : "Copia a mano";
-    setTimeout(() => (copy.textContent = "Copia link"), 1800);
-  });
-
-  const rotate = document.createElement("button");
-  rotate.type = "button";
-  rotate.className = "btn small ghost";
-  rotate.textContent = "Nuovo link";
-  rotate.addEventListener("click", () => rotateLink(game));
-
-  box.append(input, copy, rotate);
-  return box;
-}
-
-async function loadLinks() {
-  links = {};
-  if (!admin) return;
-  try {
-    const data = await api("GET", "api/links");
-    publicUrl = data.publicUrl;
-    data.links.forEach((l) => (links[`${l.source}/${l.file}`] = l));
-    $("no-public").hidden = Boolean(publicUrl);
-  } catch (ex) {
-    message(ex.message, "error");
-  }
-}
-
-async function rotateLink(game) {
-  if (!confirm("Creare un nuovo link per questo gioco? Quello vecchio smetterà subito di funzionare.")) return;
-  try {
-    await api("POST", "api/links/rotate", JSON.stringify({ source: game.dir.replace("/", ""), file: game.file }), "application/json");
-    message("Nuovo link creato.", "ok");
-  } catch (ex) {
-    message(ex.message, "error");
-  }
-  await loadLinks();
-  await loadGames();
-}
-
 async function loadGames() {
   const lists = await Promise.all(DIRS.map(listDir));
   if (lists.every((l) => l === null)) {
     showStatus("Non riesco a leggere l'elenco dei giochi. Riprova tra poco.");
     $("games").replaceChildren();
+    games = [];
     return;
   }
   const found = lists.flatMap((l) => l || []);
   if (found.length === 0) {
     showStatus("Ancora nessun gioco: arriveranno presto!");
     $("games").replaceChildren();
+    games = [];
     return;
   }
   showStatus("");
-  const games = await Promise.all(found.map(async (g) => ({ ...g, ...(await readInfo(g)) })));
+  games = await Promise.all(found.map(async (g) => ({ ...g, ...(await readInfo(g)) })));
   games.sort((a, b) => (a.title || a.file).localeCompare(b.title || b.file, "it"));
   $("games").replaceChildren(...games.map(card));
 }
@@ -195,6 +135,8 @@ async function api(method, url, body, type) {
   return data;
 }
 
+const json = (obj) => JSON.stringify(obj);
+
 function message(text, kind) {
   const m = $("admin-msg");
   m.textContent = text;
@@ -215,10 +157,12 @@ async function openAdmin() {
   $("admin-off").hidden = s.enabled;
   $("login").hidden = !s.enabled || s.auth;
   $("upload").hidden = !s.auth;
+  $("groups").hidden = !s.auth;
+  $("logout").hidden = !s.auth;
   admin = Boolean(s.auth);
   if (s.enabled && !s.auth) $("password").focus();
-  await loadLinks();
   await loadGames();
+  if (admin) await loadGroups();
   $("admin").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -227,7 +171,7 @@ $("manage").addEventListener("click", openAdmin);
 $("login").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    await api("POST", "api/login", JSON.stringify({ password: $("password").value }), "application/json");
+    await api("POST", "api/login", json({ password: $("password").value }), "application/json");
     $("password").value = "";
     await openAdmin();
   } catch (ex) {
@@ -238,7 +182,6 @@ $("login").addEventListener("submit", async (e) => {
 $("logout").addEventListener("click", async () => {
   await api("POST", "api/logout").catch(() => {});
   admin = false;
-  links = {};
   $("admin").hidden = true;
   $("manage").hidden = false;
   await loadGames();
@@ -261,8 +204,7 @@ $("file").addEventListener("change", async () => {
       if (ex.status !== 409 || !confirm(`${ex.message}. Vuoi sostituirlo?`)) throw ex;
       res = await upload(file, true);
     }
-    message(`Caricato: ${res.name}. Lo trovi nell'elenco qui sopra${res.url ? `, con il suo link per i genitori: ${res.url}` : ""}.`, "ok");
-    await loadLinks();
+    message(`Caricato: ${res.name}. Lo trovi nell'elenco qui sopra; per mandarlo a un genitore aggiungilo a un gruppo.`, "ok");
     await loadGames();
   } catch (ex) {
     if (ex.status === 401) await openAdmin();
@@ -273,15 +215,188 @@ $("file").addEventListener("change", async () => {
 });
 
 async function removeGame(game, title) {
-  if (!confirm(`Eliminare "${title}"?`)) return;
+  if (!confirm(`Eliminare "${title}"? Verrà tolto anche dai gruppi.`)) return;
   try {
     await api("DELETE", `api/files/${encodeURIComponent(game.file)}`);
     message(`Eliminato: ${title}.`, "ok");
   } catch (ex) {
     message(ex.message, "error");
   }
-  await loadLinks();
   await loadGames();
+  await loadGroups();
+}
+
+// ── Gruppi di giochi ──
+async function copyText(text, input) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fuori da HTTPS il browser non dà accesso agli appunti: si copia dalla casella
+    input.select();
+    return document.execCommand("copy");
+  }
+}
+
+function setGroups(data) {
+  groups = data.groups;
+  publicUrl = data.publicUrl;
+  renderGroups();
+}
+
+async function loadGroups() {
+  try {
+    setGroups(await api("GET", "api/groups"));
+  } catch (ex) {
+    message(ex.message, "error");
+  }
+}
+
+function titleOfKey(key) {
+  const g = games.find((x) => keyOf(x) === key);
+  return g ? gameTitle(g) : key.slice(key.indexOf("/") + 1);
+}
+
+function button(text, cls, onClick) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = `btn small ${cls || ""}`;
+  b.textContent = text;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function renderGroups() {
+  $("no-public").hidden = Boolean(publicUrl);
+  const list = $("group-list");
+  list.replaceChildren();
+  if (groups.length === 0) {
+    const li = document.createElement("li");
+    li.className = "hint";
+    li.textContent = "Nessun gruppo: creane uno per mandare dei giochi a un genitore.";
+    list.append(li);
+  }
+  for (const g of groups) {
+    const li = document.createElement("li");
+    li.className = "group-item";
+
+    const name = document.createElement("strong");
+    name.textContent = g.label || "Senza nome";
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    const n = g.games.length;
+    meta.textContent = n
+      ? `${n} ${n === 1 ? "gioco" : "giochi"}: ${g.games.map(titleOfKey).join(", ")}`
+      : "Nessun gioco (quelli scelti sono stati eliminati): il link non funziona";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.readOnly = true;
+    input.value = g.url || `Codice ${g.token} (manca GIOCHI_PUBLIC_URL sul Pi)`;
+    input.setAttribute("aria-label", "Link per il genitore");
+
+    const row = document.createElement("div");
+    row.className = "row";
+    const copy = button("Copia link", "", async () => {
+      copy.textContent = (await copyText(input.value, input)) ? "Copiato!" : "Copia a mano";
+      setTimeout(() => (copy.textContent = "Copia link"), 1800);
+    });
+    copy.disabled = !g.url;
+    row.append(
+      copy,
+      button("Modifica", "ghost", () => openGroupEditor(g)),
+      button("Elimina", "danger", () => removeGroup(g)),
+    );
+
+    li.append(name, meta, input, row);
+    list.append(li);
+  }
+}
+
+function openGroupEditor(group) {
+  editing = group || null;
+  $("group-title").textContent = group ? "Modifica gruppo" : "Nuovo gruppo";
+  $("group-label").value = group ? group.label : "";
+  $("group-rotate").hidden = !group;
+
+  const box = $("group-games");
+  box.replaceChildren();
+  const selected = new Set(group ? group.games : []);
+  for (const game of games) {
+    const label = document.createElement("label");
+    label.className = "group-game";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = keyOf(game);
+    cb.checked = selected.has(keyOf(game));
+    const icon = document.createElement("span");
+    icon.className = "gi";
+    icon.textContent = gameIcon(game);
+    const text = document.createElement("span");
+    text.textContent = gameTitle(game);
+    label.append(cb, icon, text);
+    box.append(label);
+  }
+  if (games.length === 0) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Non ci sono ancora giochi.";
+    box.append(p);
+  }
+  $("group-form").hidden = false;
+  $("group-add").hidden = true;
+  $("group-label").focus();
+}
+
+function closeGroupEditor() {
+  $("group-form").hidden = true;
+  $("group-add").hidden = false;
+  editing = null;
+}
+
+$("group-add").addEventListener("click", () => openGroupEditor(null));
+$("group-cancel").addEventListener("click", closeGroupEditor);
+
+$("group-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = json({
+    label: $("group-label").value,
+    games: [...document.querySelectorAll("#group-games input:checked")].map((c) => c.value),
+  });
+  const wasEditing = Boolean(editing);
+  try {
+    const data = editing
+      ? await api("PUT", `api/groups/${editing.token}`, body, "application/json")
+      : await api("POST", "api/groups", body, "application/json");
+    closeGroupEditor();
+    setGroups(data);
+    message(wasEditing ? "Gruppo aggiornato." : "Gruppo creato: copia il link e mandalo al genitore.", "ok");
+  } catch (ex) {
+    message(ex.message, "error");
+  }
+});
+
+$("group-rotate").addEventListener("click", async () => {
+  if (!editing) return;
+  if (!confirm("Creare un nuovo link per il gruppo? Quello vecchio smetterà subito di funzionare.")) return;
+  try {
+    const data = await api("POST", `api/groups/${editing.token}/rotate`, json({}), "application/json");
+    closeGroupEditor();
+    setGroups(data);
+    message("Nuovo link creato.", "ok");
+  } catch (ex) {
+    message(ex.message, "error");
+  }
+});
+
+async function removeGroup(group) {
+  if (!confirm(`Eliminare il gruppo "${group.label || "Senza nome"}"? Il suo link smetterà di funzionare (i giochi restano).`)) return;
+  try {
+    setGroups(await api("DELETE", `api/groups/${group.token}`));
+    message("Gruppo eliminato.", "ok");
+  } catch (ex) {
+    message(ex.message, "error");
+  }
 }
 
 loadGames();

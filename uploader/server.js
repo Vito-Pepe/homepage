@@ -2,9 +2,10 @@
 
 // Servizio dei giochi.
 // Porta privata (PORT, raggiunta solo da nginx su /giochi/api/): caricamento ed eliminazione dei
-//   giochi e gestione dei link pubblici, con la password GIOCHI_PASSWORD.
-// Porta pubblica (PUBLIC_PORT, pubblicata con il funnel di Tailscale): restituisce solo il gioco
-//   che corrisponde a un codice valido, in sandbox. Nient'altro.
+//   giochi e gestione dei gruppi di giochi, con la password GIOCHI_PASSWORD.
+// Porta pubblica (PUBLIC_PORT, pubblicata con il funnel di Tailscale): solo i gruppi, tramite
+//   link con codice. Un gruppo con più giochi mostra una pagina di scelta; con un gioco solo
+//   porta dritto al gioco. I giochi sono serviti in sandbox.
 
 const http = require('http');
 const fs = require('fs');
@@ -17,9 +18,9 @@ const PUBLIC_PORT = Number(process.env.PUBLIC_PORT) || 3001;
 const DATA_DIR = process.env.DATA_DIR || '/data';
 // Giochi della repo (app/giochi/files/), in sola lettura
 const REPO_DIR = process.env.REPO_DIR || '/repo';
-// Stato privato (codici dei link): NON va nella cartella dei giochi, che nginx rende elencabile
+// Stato privato (gruppi e loro codici): NON va nella cartella dei giochi, che nginx rende elencabile
 const STATE_DIR = process.env.STATE_DIR || '/state';
-const LINKS_FILE = path.join(STATE_DIR, 'links.json');
+const GROUPS_FILE = path.join(STATE_DIR, 'groups.json');
 const PASSWORD = process.env.GIOCHI_PASSWORD || '';
 // Indirizzo con cui i genitori raggiungono la porta pubblica (es. https://.../g)
 const PUBLIC_URL = /^https?:\/\/[^\s?#]+$/.test(String(process.env.GIOCHI_PUBLIC_URL || '').replace(/\/+$/, ''))
@@ -28,6 +29,8 @@ const PUBLIC_URL = /^https?:\/\/[^\s?#]+$/.test(String(process.env.GIOCHI_PUBLIC
 
 const MAX_SIZE = 3 * 1024 * 1024;
 const MAX_FILES = 200;
+const MAX_GROUPS = 200;
+const MAX_GROUP_GAMES = 30;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 const NAME = /^[a-z0-9][a-z0-9._-]{0,78}\.html$/;
 const TOKEN = /^[A-Za-z0-9_-]{22}$/;
@@ -78,10 +81,22 @@ function readBody(req, limit) {
   });
 }
 
+async function readJson(req) {
+  try {
+    return JSON.parse((await readBody(req, 64 * 1024)).toString('utf8'));
+  } catch (e) {
+    throw e.status ? e : httpError(400, 'Richiesta non valida');
+  }
+}
+
 function writeAtomic(file, data) {
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, data);
   fs.renameSync(tmp, file);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
 // ── Sessione ──
@@ -110,10 +125,10 @@ function passwordMatches(given) {
 let failures = 0;
 let lockedUntil = 0;
 
-// ── Nomi dei file ──
+// ── Giochi ──
 function cleanName(raw) {
   const base = path.basename(String(raw || ''))
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/\.htm$/, '.html')
     .replace(/\s+/g, '-')
@@ -128,83 +143,108 @@ function listUploaded() {
   return fs.readdirSync(DATA_DIR).filter((n) => NAME.test(n));
 }
 
-// Tutti i giochi: quelli della repo (nomi liberi, letti dalla cartella) e quelli caricati.
-function allGames() {
-  const out = [];
+// Tutti i giochi, identificati da "files/<nome>" (repo) o "caricati/<nome>" (caricati).
+function allGameKeys() {
+  const keys = [];
   for (const [source, dir] of Object.entries(SOURCES)) {
-    let names = [];
     try {
-      names = fs.readdirSync(dir, { withFileTypes: true })
+      fs.readdirSync(dir, { withFileTypes: true })
         .filter((d) => d.isFile() && /\.html?$/i.test(d.name) && !d.name.startsWith('.'))
-        .map((d) => d.name);
+        .forEach((d) => keys.push(`${source}/${d.name}`));
     } catch {
       // cartella assente: nessun gioco da quella fonte
     }
-    names.forEach((file) => out.push({ source, file }));
   }
-  return out;
+  return keys;
 }
 
-// ── Link pubblici ──
-// links.json: { "files/memory-esempio.html": "<codice>", "caricati/x.html": "<codice>" }
-let links = {};
+function gamePath(key) {
+  const slash = key.indexOf('/');
+  const dir = SOURCES[key.slice(0, slash)];
+  const file = key.slice(slash + 1);
+  if (!dir || !file || file.includes('/') || file.includes('\\') || file.startsWith('.')) return null;
+  return path.join(dir, file);
+}
+
+// Titolo, icona e descrizione letti dal gioco (<title>, <meta name="icona">, <meta name="description">)
+function gameInfo(key) {
+  let html = '';
+  try {
+    html = fs.readFileSync(gamePath(key), 'utf8').slice(0, 200 * 1024);
+  } catch {
+    // gioco non leggibile: si usano i valori predefiniti
+  }
+  const meta = {};
+  for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
+    const attrs = {};
+    for (const m of tag.matchAll(/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) attrs[m[1].toLowerCase()] = m[2] ?? m[3];
+    if (attrs.name && attrs.content !== undefined) meta[attrs.name.toLowerCase()] = attrs.content.trim();
+  }
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const file = key.slice(key.indexOf('/') + 1);
+  const fallback = file.replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim();
+  return {
+    title: ((titleMatch && titleMatch[1].trim()) || fallback.charAt(0).toUpperCase() + fallback.slice(1)).slice(0, 60),
+    icon: Array.from(meta.icona || '🎮').slice(0, 4).join(''),
+    desc: (meta.description || '').slice(0, 140),
+  };
+}
+
+// ── Gruppi ──
+// groups.json: [{ "token": "<codice>", "label": "nome interno", "games": ["files/x.html", ...] }]
+let groups = [];
 try {
-  links = JSON.parse(fs.readFileSync(LINKS_FILE, 'utf8'));
+  groups = JSON.parse(fs.readFileSync(GROUPS_FILE, 'utf8'));
+  if (!Array.isArray(groups)) groups = [];
 } catch {
-  links = {};
+  groups = [];
+}
+
+function saveGroups() {
+  writeAtomic(GROUPS_FILE, JSON.stringify(groups, null, 1));
 }
 
 function newToken() {
   return crypto.randomBytes(16).toString('base64url');
 }
 
-// Ogni gioco presente riceve un codice; i codici dei giochi spariti vengono tolti.
-function syncLinks() {
-  const games = allGames();
-  const keys = new Set(games.map((g) => `${g.source}/${g.file}`));
+// Toglie dai gruppi i giochi che non esistono più (eliminati o tolti dalla repo).
+function pruneGroups() {
+  const existing = new Set(allGameKeys());
   let changed = false;
-  for (const key of keys) {
-    if (!links[key]) {
-      links[key] = newToken();
+  for (const g of groups) {
+    const kept = g.games.filter((k) => existing.has(k));
+    if (kept.length !== g.games.length) {
+      g.games = kept;
       changed = true;
     }
   }
-  for (const key of Object.keys(links)) {
-    if (!keys.has(key)) {
-      delete links[key];
-      changed = true;
-    }
-  }
-  if (changed) {
-    try {
-      writeAtomic(LINKS_FILE, JSON.stringify(links, null, 1));
-    } catch (e) {
-      console.error('Impossibile salvare i link:', e.message);
-    }
-  }
-  return games;
+  if (changed) saveGroups();
 }
 
-function urlFor(token) {
-  return PUBLIC_URL ? `${PUBLIC_URL}/${token}` : '';
+function cleanGroup(body) {
+  if (!body || typeof body !== 'object') throw httpError(400, 'Gruppo non valido');
+  const label = String(body.label || '').trim().slice(0, 60);
+  const existing = new Set(allGameKeys());
+  const games = [...new Set(Array.isArray(body.games) ? body.games.map(String) : [])]
+    .filter((k) => existing.has(k))
+    .slice(0, MAX_GROUP_GAMES);
+  if (games.length === 0) throw httpError(400, 'Scegli almeno un gioco');
+  return { label, games };
 }
 
-function linkList() {
-  return syncLinks().map(({ source, file }) => {
-    const token = links[`${source}/${file}`];
-    return { source, file, token, url: urlFor(token) };
-  });
+function groupList() {
+  pruneGroups();
+  return groups.map(({ token, label, games }) => ({ token, label, games, url: PUBLIC_URL ? `${PUBLIC_URL}/${token}` : '' }));
 }
 
-function findByToken(token) {
-  if (!TOKEN.test(token)) return null;
-  const key = Object.keys(links).find((k) => links[k] === token);
-  if (!key) return null;
-  const slash = key.indexOf('/');
-  const dir = SOURCES[key.slice(0, slash)];
-  const file = key.slice(slash + 1);
-  if (!dir || file.includes('/') || file.includes('\\') || file.startsWith('.')) return null;
-  return path.join(dir, file);
+function findGroup(token) {
+  return TOKEN.test(token) ? groups.find((g) => g.token === token) : undefined;
+}
+
+// Chiave pubblica di un gioco dentro un gruppo: stabile, ma non rivela il nome del file.
+function itemKey(group, key) {
+  return crypto.createHash('sha256').update(`${group.token}:${key}`).digest('base64url').slice(0, 12);
 }
 
 // ── Porta privata (dietro nginx) ──
@@ -224,12 +264,7 @@ async function handle(req, res) {
 
   if (route === 'POST /giochi/api/login') {
     if (Date.now() < lockedUntil) throw httpError(429, 'Troppi tentativi, riprova tra un minuto');
-    let body;
-    try {
-      body = JSON.parse((await readBody(req, 1024)).toString('utf8'));
-    } catch (e) {
-      throw e.status ? e : httpError(400, 'Richiesta non valida');
-    }
+    const body = await readJson(req);
     if (typeof body.password === 'string' && body.password.length <= 200 && passwordMatches(body.password)) {
       failures = 0;
       const exp = String(Date.now() + SESSION_MS);
@@ -263,8 +298,7 @@ async function handle(req, res) {
       throw httpError(400, 'Il file non sembra una pagina html');
     }
     writeAtomic(file, buf);
-    syncLinks();
-    return sendJson(res, exists ? 200 : 201, { name, url: urlFor(links[`caricati/${name}`]) });
+    return sendJson(res, exists ? 200 : 201, { name });
   }
 
   const del = url.pathname.match(/^\/giochi\/api\/files\/([^/]+)$/);
@@ -273,68 +307,144 @@ async function handle(req, res) {
     const file = path.join(DATA_DIR, name);
     if (!fs.existsSync(file)) throw httpError(404, 'Gioco non trovato');
     fs.unlinkSync(file);
-    syncLinks();
+    pruneGroups();
     return sendJson(res, 200, { ok: true });
   }
 
-  if (route === 'GET /giochi/api/links') {
-    return sendJson(res, 200, { publicUrl: PUBLIC_URL, links: linkList() });
+  if (route === 'GET /giochi/api/groups') {
+    return sendJson(res, 200, { publicUrl: PUBLIC_URL, groups: groupList() });
   }
 
-  if (route === 'POST /giochi/api/links/rotate') {
-    let body;
-    try {
-      body = JSON.parse((await readBody(req, 1024)).toString('utf8'));
-    } catch (e) {
-      throw e.status ? e : httpError(400, 'Richiesta non valida');
+  if (route === 'POST /giochi/api/groups') {
+    if (groups.length >= MAX_GROUPS) throw httpError(400, 'Troppi gruppi: eliminane qualcuno');
+    groups.push({ token: newToken(), ...cleanGroup(await readJson(req)) });
+    saveGroups();
+    return sendJson(res, 201, { publicUrl: PUBLIC_URL, groups: groupList() });
+  }
+
+  const g = url.pathname.match(/^\/giochi\/api\/groups\/([^/]+)(\/rotate)?$/);
+  if (g) {
+    const group = findGroup(g[1]);
+    if (!group) throw httpError(404, 'Gruppo non trovato');
+    if (req.method === 'PUT' && !g[2]) {
+      Object.assign(group, cleanGroup(await readJson(req)));
+    } else if (req.method === 'DELETE' && !g[2]) {
+      groups = groups.filter((x) => x !== group);
+    } else if (req.method === 'POST' && g[2]) {
+      group.token = newToken();
+    } else {
+      throw httpError(405, 'Metodo non consentito');
     }
-    syncLinks();
-    const key = `${body.source}/${body.file}`;
-    if (!SOURCES[body.source] || typeof body.file !== 'string' || !links[key]) {
-      throw httpError(404, 'Gioco non trovato');
-    }
-    links[key] = newToken();
-    writeAtomic(LINKS_FILE, JSON.stringify(links, null, 1));
-    return sendJson(res, 200, { publicUrl: PUBLIC_URL, links: linkList() });
+    saveGroups();
+    return sendJson(res, 200, { publicUrl: PUBLIC_URL, groups: groupList() });
   }
 
   throw httpError(404, 'Non trovato');
 }
 
 // ── Porta pubblica ──
-// Risponde solo a /<codice> (o /g/<codice>, a seconda di come l'ingresso inoltra il percorso).
-// Sandbox: il gioco gira in un'origine isolata, senza accesso a cookie o dati del sito.
 const SANDBOX = 'sandbox allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock';
+const PUBLIC_HEADERS = {
+  'Cache-Control': 'no-store',
+  'X-Robots-Tag': 'noindex, nofollow',
+  'Referrer-Policy': 'no-referrer',
+  'X-Content-Type-Options': 'nosniff',
+};
+
+const PAGE_STYLE = `
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;color:#fff;display:flex;justify-content:center}
+main{width:100%;max-width:680px;padding:3rem 1.5rem;display:flex;flex-direction:column;align-items:center}
+h1{font-size:2.6rem;font-weight:800;text-shadow:0 3px 8px rgba(0,0,0,.25);margin-bottom:.4rem}
+p{color:rgba(255,255,255,.85);font-size:1.1rem;margin-bottom:1.8rem;text-align:center}
+ul{list-style:none;width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem}
+a.card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.35rem;padding:1.5rem 1rem;background:#fff;border-radius:22px;color:inherit;text-decoration:none;box-shadow:0 6px 22px rgba(0,0,0,.15);height:100%}
+a.card:hover{transform:translateY(-4px)}
+.icon{width:72px;height:72px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:2.4rem;margin-bottom:.4rem}
+.t0 .icon{background:#dbeafe}.t1 .icon{background:#fce7f3}.t2 .icon{background:#d1fae5}.t3 .icon{background:#fef3c7}
+.name{font-size:1.3rem;font-weight:800;color:#6C63FF}
+.desc{font-size:.9rem;color:#6b7280}
+@media(max-width:480px){h1{font-size:2.1rem}ul{grid-template-columns:1fr}}`;
+
+function sendPage(res, status, title, body) {
+  res.writeHead(status, {
+    ...PUBLIC_HEADERS,
+    'Content-Type': 'text/html; charset=utf-8',
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  });
+  res.end(`<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>${escapeHtml(title)}</title><style>${PAGE_STYLE}</style></head><body><main>${body}</main></body></html>`);
+}
+
+function notFound(res) {
+  sendPage(res, 404, 'Gioco non trovato', '<h1>Ops!</h1><p>Questo link non funziona più. Chiedi un nuovo link alla logopedista.</p>');
+}
+
+// Pagina di scelta di un gruppo. Link relativi: funzionano qualunque sia il prefisso (/g/ o no).
+function sendChoice(res, group, keys) {
+  const cards = keys.map((key, i) => {
+    const info = gameInfo(key);
+    return `<li><a class="card t${i % 4}" href="${escapeHtml(group.token)}/${itemKey(group, key)}">`
+      + `<span class="icon">${escapeHtml(info.icon)}</span><strong class="name">${escapeHtml(info.title)}</strong>`
+      + (info.desc ? `<span class="desc">${escapeHtml(info.desc)}</span>` : '')
+      + '</a></li>';
+  }).join('');
+  sendPage(res, 200, 'Giochi', `<h1>Giochi</h1><p>Scegli un gioco</p><ul>${cards}</ul>`);
+}
+
+// Script aggiunto ai giochi serviti dal link: i link che portano fuori dal gioco (es. "← Giochi")
+// tornano alla pagina di scelta del gruppo; se il gruppo ha un gioco solo, vengono nascosti.
+function injectedScript(back) {
+  return `<script>(function(){var back=${JSON.stringify(back)};
+function outside(a){var h=a.getAttribute('href');if(!h||h.charAt(0)==='#'||/^(javascript:|mailto:|tel:|sms:)/i.test(h))return false;
+var u;try{u=new URL(h,location.href)}catch(e){return false}
+if(u.origin!==location.origin)return false;return u.pathname!==location.pathname}
+document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;
+if(!a||!outside(a))return;e.preventDefault();if(back)location.href=back},true);
+if(!back){var hide=function(){var l=document.querySelectorAll('a[href]');for(var i=0;i<l.length;i++)if(outside(l[i]))l[i].style.display='none'};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',hide);else hide()}})();</script>`;
+}
+
+function sendGame(res, key, back) {
+  let html;
+  try {
+    html = fs.readFileSync(gamePath(key), 'utf8');
+  } catch {
+    return notFound(res);
+  }
+  const script = injectedScript(back);
+  const head = html.match(/<head\b[^>]*>/i);
+  const htmlTag = html.match(/<html\b[^>]*>/i);
+  if (head) html = html.replace(head[0], head[0] + script);
+  else if (htmlTag) html = html.replace(htmlTag[0], htmlTag[0] + script);
+  else html = script + html;
+  res.writeHead(200, { ...PUBLIC_HEADERS, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': SANDBOX });
+  res.end(html);
+}
 
 function handlePublic(req, res) {
   if (req.method !== 'GET' && req.method !== 'HEAD') throw httpError(405, 'Metodo non consentito');
   const url = new URL(req.url, 'http://localhost');
-  const m = url.pathname.match(/^\/(?:g\/)?([A-Za-z0-9_-]{22})\/?$/);
-  const file = m ? findByToken(m[1]) : null;
-  let data;
-  try {
-    data = file ? fs.readFileSync(file) : null;
-  } catch {
-    data = null;
+  // /<codice>, /<codice>/<gioco> (con o senza /g/ davanti, a seconda dell'ingresso)
+  const m = url.pathname.match(/^\/(?:g\/)?([A-Za-z0-9_-]{22})(\/([A-Za-z0-9_-]{12})?)?$/);
+  const group = m && findGroup(m[1]);
+  if (!group) return notFound(res);
+  pruneGroups();
+  const keys = group.games;
+  if (keys.length === 0) return notFound(res);
+
+  if (m[3]) {
+    const key = keys.find((k) => itemKey(group, k) === m[3]);
+    if (!key) return notFound(res);
+    // Dal gioco si torna alla pagina di scelta: "../<codice>" relativo a /<codice>/<gioco>
+    return sendGame(res, key, keys.length > 1 ? `../${group.token}` : null);
   }
-  if (!data) {
-    res.writeHead(404, {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Robots-Tag': 'noindex, nofollow',
-      'X-Content-Type-Options': 'nosniff',
-    });
-    return res.end('<!DOCTYPE html><html lang="it"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Gioco non trovato</title><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;background:#764ba2;color:#fff"><h1>Ops!</h1><p>Questo gioco non c\'è più. Chiedi un nuovo link alla logopedista.</p></body></html>');
+  if (m[2]) {
+    // "/<codice>/": niente barra finale, così i link relativi della pagina funzionano
+    res.writeHead(301, { ...PUBLIC_HEADERS, Location: `../${group.token}` });
+    return res.end();
   }
-  res.writeHead(200, {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Content-Security-Policy': SANDBOX,
-    'Cache-Control': 'no-store',
-    'X-Robots-Tag': 'noindex, nofollow',
-    'Referrer-Policy': 'no-referrer',
-    'X-Content-Type-Options': 'nosniff',
-  });
-  return res.end(req.method === 'HEAD' ? undefined : data);
+  if (keys.length === 1) return sendGame(res, keys[0], null);
+  return sendChoice(res, group, keys);
 }
 
 // ── Avvio ──
@@ -353,13 +463,13 @@ function makeServer(handler) {
   return server;
 }
 
-syncLinks();
+pruneGroups();
 
 makeServer(handle).listen(PORT, () => {
   console.log(`Caricamento giochi sulla porta ${PORT}`);
   if (!PASSWORD) console.log('GIOCHI_PASSWORD non impostata: caricamento spento');
 });
 makeServer(handlePublic).listen(PUBLIC_PORT, () => {
-  console.log(`Giochi pubblici (link) sulla porta ${PUBLIC_PORT}`);
+  console.log(`Gruppi di giochi pubblici sulla porta ${PUBLIC_PORT}`);
   if (!PUBLIC_URL) console.log('GIOCHI_PUBLIC_URL non impostato: i link mostrano solo il codice');
 });
