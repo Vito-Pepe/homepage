@@ -1,12 +1,12 @@
 # homepage
 
-Pagina iniziale con i collegamenti alle app che girano sul Raspberry Pi (Sillabe e le prossime). È un sito statico servito da nginx in un container Docker.
+Pagina iniziale con i collegamenti alle app che girano sul Raspberry Pi (Sillabe, Parole, Minigiochi, Chess, Meteo). È un sito statico servito da nginx in un container Docker.
 
-I link si adattano da soli: dalla rete locale puntano a `http://<host>:<porta-lan>`, tramite Tailscale a `https://<host>:<porta-tailscale>`.
+I link si adattano da soli: con la homepage aperta in https (`https://vito.<tailnet>.ts.net`) puntano agli indirizzi https senza porta di ogni app (`https://<app>.<tailnet>.ts.net`, repo `ingressi-https`); aperta in http (`http://vito:8081` o dalla rete locale) puntano a `http://<host>:<porta-lan>`.
 
 ## Aggiungere un'app
 
-Aggiungi una riga all'array `APPS` in `app/apps.js` e pusha: l'auto-update sul Pi fa il resto.
+Aggiungi una riga all'array `APPS` in `app/apps.js` (con `lanPort` e/o `tsHost`, il nome del suo dispositivo nella repo `ingressi-https`) e pusha: l'auto-update sul Pi fa il resto.
 
 ## Giochi
 
@@ -112,9 +112,13 @@ Aggiornamento automatico ogni 5 minuti (senza sudo):
 
 ## Porte
 
-| App | LAN (http) | Tailscale (https) |
+| App | LAN (http) | Tailscale (https, senza porta) |
 |---|---|---|
-| homepage | 8081 | 443 |
-| sillabe | 8080 | 10000 |
+| homepage | 8081 | `https://vito.<tailnet>.ts.net` |
+| sillabe | 8080 | `https://sillabe.<tailnet>.ts.net` |
+| parole | 8082 | `https://parole.<tailnet>.ts.net` |
+| chess | 8085 | `https://chess.<tailnet>.ts.net` |
+| minigiochi | 8087 | `https://minigiochi.<tailnet>.ts.net` |
+| meteo | – (127.0.0.1:8765) | `https://meteo.<tailnet>.ts.net` |
 
-La porta HTTPS 8443 è usata da un'altra app (`127.0.0.1:8765`). Prima di aggiungere un `tailscale serve`, controllare con `tailscale serve status` quali porte sono già prese: un nuovo comando sulla stessa porta sostituisce quello vecchio.
+Gli indirizzi senza porta delle app li dà la repo `ingressi-https` (un dispositivo Tailscale per app). Il `tailscale serve` del Pi serve solo la homepage sulla 443: prima di aggiungerne un altro controllare con `tailscale serve status`, perché un comando sulla stessa porta sostituisce quello vecchio.
