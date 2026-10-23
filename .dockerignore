@@ -2,3 +2,5 @@
 README.md
 update.sh
 docker-compose.yml
+uploader
+.env

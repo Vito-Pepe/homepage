@@ -5,4 +5,30 @@ services:
       # Raggiungibile dalla LAN (http://IP-DEL-PI:8081) e, tramite
       # tailscale serve, da remoto su https://<nome>.<tailnet>.ts.net (porta 443).
       - "8081:80"
+    volumes:
+      # Giochi caricati dalla pagina: nginx li serve in sola lettura su /giochi/caricati/
+      - giochi-caricati:/usr/share/nginx/html/giochi/caricati:ro
+    depends_on:
+      - giochi
     restart: unless-stopped
+
+  # Riceve i giochi caricati dalla pagina /giochi/ (con la password GIOCHI_PASSWORD del
+  # file .env) e li salva nel volume condiviso. Non è pubblicato su nessuna porta:
+  # ci arriva solo nginx.
+  giochi:
+    build: ./uploader
+    environment:
+      - GIOCHI_PASSWORD=${GIOCHI_PASSWORD:-}
+    volumes:
+      - giochi-caricati:/data
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    pids_limit: 50
+    restart: unless-stopped
+
+volumes:
+  giochi-caricati:
