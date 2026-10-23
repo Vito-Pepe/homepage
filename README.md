@@ -8,10 +8,25 @@ I link si adattano da soli: dalla rete locale puntano a `http://<host>:<porta-la
 
 Aggiungi una riga all'array `APPS` in `app/apps.js` e pusha: l'auto-update sul Pi fa il resto.
 
+## Giochi
+
+La sezione **Giochi** (riquadro nella homepage, pagina `/giochi/`) elenca da sola i giochi presenti in `app/giochi/files/`: per aggiungerne uno basta mettere lì il suo file `.html`, senza modificare nessun elenco.
+
+- **Nome nell'elenco**: il `<title>` del gioco. Se manca, si usa il nome del file (`memory-animali.html` diventa "Memory animali").
+- **Icona** (facoltativa): `<meta name="icona" content="🐶">` nel `<head>`. Se manca: 🎮.
+- **Descrizione** (facoltativa): `<meta name="description" content="Trova le coppie">`.
+- Consigliato: un link per tornare all'elenco, `<a href="../">← Giochi</a>`.
+
+Ogni gioco è un file `.html`. Se usa immagini o altri file, mettili nella stessa cartella: nell'elenco compaiono solo i `.html`.
+
+Per pubblicarne uno senza usare il terminale: su GitHub apri la cartella `app/giochi/files`, premi **Add file > Upload files**, trascina il file e conferma su `main`. Entro 5 minuti il Pi lo mostra.
+
+`memory-esempio.html` è un esempio: si può cancellare quando arrivano i giochi veri.
+
 ## Deploy sul Raspberry Pi
 
 ```bash
-git clone -b <branch> https://github.com/Vito-Pepe/homepage.git
+git clone https://github.com/Vito-Pepe/homepage.git
 cd homepage
 docker compose up --build -d
 curl -I http://127.0.0.1:8081

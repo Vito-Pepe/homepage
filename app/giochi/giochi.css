@@ -1,0 +1,25 @@
+.back {
+  align-self: flex-start;
+  margin-bottom: 1.2rem;
+  padding: 0.45rem 1.1rem;
+  background: rgba(255,255,255,0.2);
+  border: 2px solid rgba(255,255,255,0.45);
+  border-radius: 25px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.back:hover { background: rgba(255,255,255,0.32); }
+
+.status {
+  color: #fff;
+  background: rgba(255,255,255,0.18);
+  border: 2px solid rgba(255,255,255,0.35);
+  border-radius: 18px;
+  padding: 1rem 1.4rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
