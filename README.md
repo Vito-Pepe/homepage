@@ -17,7 +17,7 @@ La sezione **Giochi** (riquadro nella homepage, pagina `/giochi/`) elenca da sol
 - **Descrizione** (facoltativa): `<meta name="description" content="Trova le coppie">`.
 - Consigliato: un link per tornare all'elenco, `<a href="../">← Giochi</a>`.
 
-Il gioco deve stare in un solo file. Se usa immagini o altri file, mettili nella stessa cartella: nell'elenco compaiono solo i `.html`.
+Ogni gioco è un file `.html`. Se usa immagini o altri file, mettili nella stessa cartella: nell'elenco compaiono solo i `.html`.
 
 Per pubblicarne uno senza usare il terminale: su GitHub apri la cartella `app/giochi/files`, premi **Add file > Upload files**, trascina il file e conferma su `main`. Entro 5 minuti il Pi lo mostra.
 
