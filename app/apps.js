@@ -11,6 +11,7 @@ const APPS = [
   { name: "Minigiochi", desc: "Tutti i minigiochi, da cercare per nome", icon: "🕹️", lanPort: 8087, tsHost: "minigiochi" },
   { name: "Chess", desc: "Scacchi contro il computer", icon: "♟️", lanPort: 8085, tsHost: "chess" },
   { name: "Meteo", desc: "Le previsioni del tempo", icon: "🌤️", tsHost: "meteo" },
+  { name: "Retro", desc: "Giochi retro da giocare nel browser", icon: "👾", lanPort: 8088, tsHost: "retro" },
 ];
 
 const host = location.hostname;
