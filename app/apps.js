@@ -12,6 +12,7 @@ const APPS = [
   { name: "Chess", desc: "Scacchi contro il computer", icon: "♟️", lanPort: 8085, tsHost: "chess" },
   { name: "Meteo", desc: "Le previsioni del tempo", icon: "🌤️", tsHost: "meteo" },
   { name: "Retro", desc: "Giochi retro da giocare nel browser", icon: "👾", lanPort: 8088, tsHost: "retro" },
+  { name: "Impostore", desc: "Chi non conosce la parola? Passatevi il telefono", icon: "🕵️", lanPort: 8089, tsHost: "impostore" },
 ];
 
 const host = location.hostname;
