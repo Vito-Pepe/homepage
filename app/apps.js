@@ -13,7 +13,7 @@ const APPS = [
   { name: "Meteo", desc: "Le previsioni del tempo", icon: "🌤️", tsHost: "meteo" },
   { name: "Retro", desc: "Giochi retro da giocare nel browser", icon: "👾", lanPort: 8088, tsHost: "retro" },
   { name: "Impostore", desc: "Chi non conosce la parola? Passatevi il telefono", icon: "🕵️", lanPort: 8089, tsHost: "impostore" },
-  { name: "Impasti", desc: "Calcolatore e diario degli impasti per la pizza", icon: "🍕", lanPort: 8090, tsHost: "pizzapp" },
+  { name: "Impasti", desc: "Impasti e ImpastiPLUS: calcolatori e diario per la pizza", icon: "🍕", lanPort: 8090, tsHost: "pizzapp" },
 ];
 
 const host = location.hostname;
