@@ -15,6 +15,7 @@ const APPS = [
   { name: "Impostore", desc: "Chi non conosce la parola? Passatevi il telefono", icon: "🕵️", lanPort: 8089, tsHost: "impostore" },
   { name: "Impasti", desc: "Impasti e ImpastiPLUS: calcolatori e diario per la pizza", icon: "🍕", lanPort: 8090, tsHost: "pizzapp" },
   { name: "Infernotuffatori", desc: "Build di Helldivers 2 condivise, con le statistiche della wiki", icon: "☄️", tsHost: "infernotuffatori" },
+  { name: "LogoApp", desc: "Giochi logopedici per fonema, struttura e posizione", icon: "🐢", tsHost: "logoapp" },
 ];
 
 const host = location.hostname;
