@@ -16,6 +16,7 @@ const APPS = [
   { name: "Impasti", desc: "Impasti e ImpastiPLUS: calcolatori e diario per la pizza", icon: "🍕", lanPort: 8090, tsHost: "pizzapp" },
   { name: "Infernotuffatori", desc: "Build di Helldivers 2 condivise, con le statistiche della wiki", icon: "☄️", tsHost: "infernotuffatori" },
   { name: "LogoApp", desc: "Giochi logopedici per fonema, struttura e posizione", icon: "🐢", tsHost: "logoapp" },
+  { name: "LogoApp collaudo", desc: "Prove delle modifiche di LogoApp prima di portarle nella versione vera", icon: "🧪", tsHost: "logoapp-collaudo" },
   { name: "Guardiano", desc: "Stato delle app e dei container del Pi, con log e pulsanti", icon: "🛡️", tsHost: "guardiano" },
 ];
 
