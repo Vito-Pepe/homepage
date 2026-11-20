@@ -120,5 +120,6 @@ Aggiornamento automatico ogni 5 minuti (senza sudo):
 | chess | 8085 | `https://chess.<tailnet>.ts.net` |
 | minigiochi | 8087 | `https://minigiochi.<tailnet>.ts.net` |
 | meteo | – (127.0.0.1:8765) | `https://meteo.<tailnet>.ts.net` |
+| morse | 8095 | `https://morse.<tailnet>.ts.net` |
 
 Gli indirizzi senza porta delle app li dà la repo `ingressi-https` (un dispositivo Tailscale per app). Il `tailscale serve` del Pi serve solo la homepage sulla 443: prima di aggiungerne un altro controllare con `tailscale serve status`, perché un comando sulla stessa porta sostituisce quello vecchio.
