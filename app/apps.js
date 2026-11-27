@@ -14,6 +14,7 @@ const APPS = [
   { name: "Retro", desc: "Giochi retro da giocare nel browser", icon: "👾", lanPort: 8088, tsHost: "retro" },
   { name: "Impostore", desc: "Chi non conosce la parola? Passatevi il telefono", icon: "🕵️", lanPort: 8089, tsHost: "impostore" },
   { name: "Morse", desc: "Il tasto del telegrafo con l'albero delle lettere, e il traduttore", icon: "📡", lanPort: 8095, tsHost: "morse" },
+  { name: "Selvaggi Esterni", desc: "La wiki di Outer Wilds, copiata sul Pi e aggiornata ogni giorno", icon: "🪐", lanPort: 8096, tsHost: "selvaggiesterni" },
   { name: "Impasti", desc: "Impasti e ImpastiPLUS: calcolatori e diario per la pizza", icon: "🍕", lanPort: 8090, tsHost: "pizzapp" },
   { name: "Infernotuffatori", desc: "Build di Helldivers 2 condivise, con le statistiche della wiki", icon: "☄️", tsHost: "infernotuffatori" },
   { name: "LogoApp", desc: "Giochi logopedici per fonema, struttura e posizione", icon: "🐢", tsHost: "logoapp" },
